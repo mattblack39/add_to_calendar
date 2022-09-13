@@ -11,10 +11,11 @@ require 'date'
 
 module AddToCalendar
   class Error < StandardError; end
-  
+
   class URLs
-    attr_accessor :start_datetime, :end_datetime, :title, :timezone, :location, :url, :description, :add_url_to_description
-    def initialize(start_datetime:, end_datetime: nil, title:, timezone:, location: nil, url: nil, description: nil, add_url_to_description: true)
+    attr_accessor :start_datetime, :end_datetime, :title, :timezone, :location, :url, :description, :add_url_to_description, :guest
+
+    def initialize(start_datetime:, end_datetime: nil, title:, timezone:, location: nil, url: nil, description: nil, add_url_to_description: true, guest: nil)
       @start_datetime = start_datetime
       @end_datetime = end_datetime
       @title = title
@@ -23,10 +24,11 @@ module AddToCalendar
       @url = url
       @description = description
       @add_url_to_description = add_url_to_description
-  
+      @guest = guest
+
       validate_attributes
     end
-  
+
     def google_url
       # Eg. https://www.google.com/calendar/render?action=TEMPLATE&text=Holly%27s%208th%20Birthday!&dates=20200615T180000/20200615T190000&ctz=Europe/London&details=Join%20us%20to%20celebrate%20with%20lots%20of%20games%20and%20cake!&location=Apartments,%20London&sprop=&sprop=name:
       calendar_url = "https://www.google.com/calendar/render?action=TEMPLATE"
@@ -47,11 +49,12 @@ module AddToCalendar
           params[:details] = url_encode(url)
         end
       end
-  
+      params[:add] = url_encode(guest) if guest
+
       params.each do |key, value|
         calendar_url << "&#{key}=#{value}"
       end
-  
+
       return calendar_url
     end
 
@@ -65,7 +68,7 @@ module AddToCalendar
         seconds = duration_seconds(start_datetime, end_datetime)
         params[:dur] = seconds_to_hours_minutes(seconds)
       else
-        params[:dur] = "0100" 
+        params[:dur] = "0100"
       end
       params[:desc] = url_encode(description) if description
       if add_url_to_description && url
@@ -80,7 +83,7 @@ module AddToCalendar
       params.each do |key, value|
         calendar_url << "&#{key}=#{value}"
       end
-  
+
       return calendar_url
     end
 
@@ -88,7 +91,7 @@ module AddToCalendar
       # Eg. https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=Holly%27s%208th%20Birthday%21&startdt=2020-05-12T12:30:00Z&enddt=2020-05-12T16:00:00Z&body=Come%20join%20us%20for%20lots%20of%20fun%20%26%20cake%21%0A%0Ahttps%3A%2F%2Fwww.example.com%2Fevent-details&location=Flat%204%2C%20The%20Edge%2C%2038%20Smith-Dorrien%20St%2C%20London%2C%20N1%207GU
       microsoft("office365")
     end
-    
+
     def outlook_com_url
       # Eg. https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=Holly%27s%208th%20Birthday%21&startdt=2020-05-12T12:30:00Z&enddt=2020-05-12T16:00:00Z&body=Come%20join%20us%20for%20lots%20of%20fun%20%26%20cake%21%0A%0Ahttps%3A%2F%2Fwww.example.com%2Fevent-details&location=Flat%204%2C%20The%20Edge%2C%2038%20Smith-Dorrien%20St%2C%20London%2C%20N1%207GU
       microsoft("outlook.com")
@@ -118,7 +121,7 @@ module AddToCalendar
       params[:LOCATION] = url_encode_ical(location) if location
       params[:UID] = "-#{url_encode(url)}" if url
       params[:UID] = "-#{utc_datetime(start_datetime)}-#{url_encode_ical(title)}" unless params[:UID] # set uid based on starttime and title only if url is unavailable
-      
+
       new_line = "%0A"
       params.each do |key, value|
         calendar_url << "#{new_line}#{key}:#{value}"
@@ -140,7 +143,7 @@ module AddToCalendar
     def android_url
       ical_url
     end
-  
+
     private
       def validate_attributes
         # msg =  "- Object must be a DateTime or Time object."
@@ -150,7 +153,7 @@ module AddToCalendar
           raise(ArgumentError, ":end_datetime #{msg} #{end_datetime.class} given") unless end_datetime.kind_of? Time
           raise(ArgumentError, ":end_datetime must be greater than :start_datetime") unless end_datetime > start_datetime
         end
-  
+
         raise(ArgumentError, ":title must be a string") unless self.title.kind_of? String
         raise(ArgumentError, ":title must not be blank") if self.title.strip.empty? # strip first, otherwise " ".empty? #=> false
 
@@ -164,7 +167,7 @@ module AddToCalendar
       end
 
       def microsoft(service)
-        # Eg. 
+        # Eg.
         if service == "outlook.com"
           calendar_url = "https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent"
         elsif service == "office365"
@@ -189,22 +192,22 @@ module AddToCalendar
           end
         end
         params[:location] = url_encode(location) if location
-  
+
         params.each do |key, value|
           calendar_url << "&#{key}=#{value}"
         end
-    
+
         return calendar_url
       end
 
       def utc_datetime(datetime)
         t = timezone.local_to_utc(
           Time.new(
-            datetime.strftime("%Y").to_i, 
-            datetime.strftime("%m").to_i, 
-            datetime.strftime("%d").to_i, 
-            datetime.strftime("%H").to_i, 
-            datetime.strftime("%M").to_i, 
+            datetime.strftime("%Y").to_i,
+            datetime.strftime("%m").to_i,
+            datetime.strftime("%d").to_i,
+            datetime.strftime("%H").to_i,
+            datetime.strftime("%M").to_i,
             datetime.strftime("%S").to_i
           )
         )
@@ -215,18 +218,18 @@ module AddToCalendar
       def utc_datetime_microsoft(datetime)
         t = timezone.local_to_utc(
           Time.new(
-            datetime.strftime("%Y").to_i, 
-            datetime.strftime("%m").to_i, 
-            datetime.strftime("%d").to_i, 
-            datetime.strftime("%H").to_i, 
-            datetime.strftime("%M").to_i, 
+            datetime.strftime("%Y").to_i,
+            datetime.strftime("%m").to_i,
+            datetime.strftime("%d").to_i,
+            datetime.strftime("%H").to_i,
+            datetime.strftime("%M").to_i,
             datetime.strftime("%S").to_i
           )
         )
 
         return t.strftime('%Y-%m-%dT%H:%M:%SZ')
       end
-  
+
       def format_date_google(start_datetime)
         start_datetime.strftime('%Y%m%dT%H%M%S')
       end
